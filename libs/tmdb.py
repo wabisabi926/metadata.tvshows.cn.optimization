@@ -22,6 +22,7 @@ from __future__ import absolute_import, unicode_literals
 
 import unicodedata
 import xbmcgui
+import xbmcaddon
 from math import floor
 from pprint import pformat
 from . import cache, data_utils, api_utils, settings, imdbratings, traktratings
@@ -38,15 +39,33 @@ HEADERS = (
 )
 
 TMDB_PARAMS = {'api_key': settings.TMDB_CLOWNCAR}
-BASE_URL = 'https://api.themoviedb.org/3/{}'
-EPISODE_GROUP_URL = BASE_URL.format('tv/episode_group/{}')
-SEARCH_URL = BASE_URL.format('search/tv')
-FIND_URL = BASE_URL.format('find/{}')
-SHOW_URL = BASE_URL.format('tv/{}')
-SEASON_URL = BASE_URL.format('tv/{}/season/{}')
-EPISODE_URL = BASE_URL.format('tv/{}/season/{}/episode/{}')
-FANARTTV_URL = 'https://webservice.fanart.tv/v3/tv/{}'
 FANARTTV_PARAMS = {'api_key': settings.FANARTTV_CLOWNCAR}
+
+def get_base_url(source_settings=None):
+    try:
+        if source_settings:
+            base = source_settings.get("TMDB_API_BASE_URL")
+        else:
+            addon = xbmcaddon.Addon(id='metadata.tvshows.tmdb.cn.optimization')
+            base = addon.getSetting('tmdb_api_base_url')
+        if not base:
+            base = 'api.tmdb.org'
+        return 'https://' + base + '/3/{}'
+    except:
+        return 'https://api.tmdb.org/3/{}'
+
+def get_fanart_url(source_settings=None):
+    try:
+        if source_settings:
+            base = source_settings.get("FANART_BASE_URL")
+        else:
+            addon = xbmcaddon.Addon(id='metadata.tvshows.tmdb.cn.optimization')
+            base = addon.getSetting('fanart_base_url')
+        if not base:
+            base = 'webservice.fanart.tv'
+        return 'https://' + base + '/v3/tv/{}'
+    except:
+        return 'https://webservice.fanart.tv/v3/tv/{}'
 
 def _get_params():
     source_settings = settings.getSourceSettings()
@@ -70,17 +89,20 @@ def search_show(title, year=None):
     params = _get_params()
     results = []
     ext_media_id = data_utils.parse_media_id(title)
+    
+    base_url = get_base_url(source_settings)
+    
     if ext_media_id:
         logger.debug('using %s of %s to find show' %
                      (ext_media_id['type'], ext_media_id['title']))
         if ext_media_id['type'] == 'tmdb_id':
-            search_url = SHOW_URL.format(ext_media_id['title'])
+            search_url = base_url.format('tv/{}').format(ext_media_id['title'])
         else:
-            search_url = FIND_URL.format(ext_media_id['title'])
+            search_url = base_url.format('find/{}').format(ext_media_id['title'])
             params['external_source'] = ext_media_id['type']
     else:
         logger.debug('using title of %s to find show' % title)
-        search_url = SEARCH_URL
+        search_url = base_url.format('search/tv')
         params['query'] = unicodedata.normalize('NFKC', title)
         if year:
             params['first_air_date_year'] = str(year)
@@ -113,10 +135,13 @@ def find_by_id(unique_ids):
     api_utils.set_headers(dict(HEADERS))
     api_utils.set_dns_settings(source_settings.get("DNS_SETTINGS", {}))
     params = _get_params()
+    
+    base_url = get_base_url(source_settings)
+    
     for key, value in unique_ids.items():
         if key in supported_ids:
             params['external_source'] = key + '_id'
-            search_url = FIND_URL.format(value)
+            search_url = base_url.format('find/{}').format(value)
             resp = api_utils.load_info(
                 search_url, params=params, verboselog=source_settings["VERBOSELOG"])
             if resp is not None:
@@ -132,10 +157,13 @@ def load_episode_list(show_info, season_map, ep_grouping):
     source_settings = settings.getSourceSettings()
     api_utils.set_headers(dict(HEADERS))
     episode_list = []
+    
+    base_url = get_base_url(source_settings)
+    
     if ep_grouping is not None:
         logger.debug(
             'Getting episodes with episode grouping of ' + ep_grouping)
-        episode_group_url = EPISODE_GROUP_URL.format(ep_grouping)
+        episode_group_url = base_url.format('tv/episode_group/{}').format(ep_grouping)
         custom_order = api_utils.load_info(
             episode_group_url, params=TMDB_PARAMS, verboselog=source_settings["VERBOSELOG"])
         if custom_order is not None:
@@ -190,9 +218,12 @@ def load_show_info(show_id, ep_grouping=None, named_seasons=None):
     if named_seasons == None:
         named_seasons = []
     show_info = cache.load_show_info_from_cache(show_id)
+    
+    base_url = get_base_url(source_settings)
+    
     if show_info is None:
         logger.debug('no cache file found, loading from scratch')
-        show_url = SHOW_URL.format(show_id)
+        show_url = base_url.format('tv/{}').format(show_id)
         params = _get_params()
         params['append_to_response'] = 'credits,content_ratings,external_ids,images,videos,keywords'
         params['include_image_language'] = '%s,en,null' % source_settings["LANG_IMAGES"][0:2]
@@ -216,7 +247,7 @@ def load_show_info(show_id, ep_grouping=None, named_seasons=None):
         season_requests = []
         seasons_list = show_info.get('seasons', [])
         for season in seasons_list:
-            season_url = SEASON_URL.format(show_id, season.get('season_number', 0))
+            season_url = base_url.format('tv/{}/season/{}').format(show_id, season.get('season_number', 0))
             season_requests.append({'url': season_url, 'params': params.copy()})
             
         season_results = api_utils.load_info_batch(season_requests, default={}, verboselog=source_settings["VERBOSELOG"])
@@ -293,6 +324,9 @@ def load_episode_info(show_id, episode_id):
     source_settings = settings.getSourceSettings()
     api_utils.set_headers(dict(HEADERS))
     api_utils.set_dns_settings(source_settings.get("DNS_SETTINGS", {}))
+    
+    base_url = get_base_url(source_settings)
+    
     show_info = load_show_info(show_id)
     if show_info is not None:
         try:
@@ -300,7 +334,7 @@ def load_episode_info(show_id, episode_id):
         except KeyError:
             return None
         # this ensures we are using the season/ep from the episode grouping if provided
-        ep_url = EPISODE_URL.format(
+        ep_url = base_url.format('tv/{}/season/{}/episode/{}').format(
             show_info['id'], episode_info['org_seasonnum'], episode_info['org_epnum'])
         params = _get_params()
         params['append_to_response'] = 'credits,external_ids,images'
@@ -402,9 +436,20 @@ def load_fanarttv_art(show_info):
     if source_settings["FANARTTV_CLIENTKEY"]:
         FANARTTV_PARAMS['client_key'] = source_settings["FANARTTV_CLIENTKEY"]
 
+    try:
+        if source_settings:
+            proxy = source_settings.get("IMAGE_PROXY_PREFIX")
+        else:
+            addon = xbmcaddon.Addon(id='metadata.tvshows.tmdb.cn.optimization')
+            proxy = addon.getSetting('image_proxy_prefix')
+        if not proxy:
+            proxy = 'https://wsrv.nl/?url='
+    except:
+        proxy = 'https://wsrv.nl/?url='
+
     tvdb_id = show_info.get('external_ids', {}).get('tvdb_id')
     if tvdb_id and source_settings["FANARTTV_ENABLE"]:
-        fanarttv_url = FANARTTV_URL.format(tvdb_id)
+        fanarttv_url = get_fanart_url(source_settings).format(tvdb_id)
         artwork = api_utils.load_info(
             fanarttv_url, params=FANARTTV_PARAMS, verboselog=source_settings["VERBOSELOG"])
         if artwork is None:
@@ -420,6 +465,7 @@ def load_fanarttv_art(show_info):
                 if lang is None or lang == source_settings["LANG_DETAILS"][0:2] or lang == 'en':
                     filepath = item.get('url')
                 if filepath:
+                    filepath = proxy + filepath
                     if tmdb_type.startswith('season'):
                         image_type = tmdb_type[6:]
                         for s in range(len(show_info.get('seasons', []))):

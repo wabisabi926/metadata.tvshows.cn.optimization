@@ -20,6 +20,7 @@
 
 from __future__ import absolute_import, unicode_literals
 
+import xbmcaddon
 from . import api_utils, settings
 try:
     from typing import Text, Optional, Union, List, Dict, Any  # pylint: disable=unused-import
@@ -34,9 +35,18 @@ HEADERS = (
     ('Content-Type', 'application/json'),
 )
 
-SHOW_URL = 'https://api.trakt.tv/shows/{}'
-EP_URL = SHOW_URL + '/seasons/{}/episodes/{}/ratings'
-
+def get_trakt_url(source_settings=None):
+    try:
+        if source_settings:
+            base = source_settings.get("TRAKT_BASE_URL")
+        else:
+            addon = xbmcaddon.Addon(id='metadata.tvshows.tmdb.cn.optimization')
+            base = addon.getSetting('trakt_base_url')
+        if not base:
+            base = 'api.trakt.tv'
+        return 'https://' + base + '/shows/{}'
+    except:
+        return 'https://api.trakt.tv/shows/{}'
 
 def get_details(imdb_id, season=None, episode=None):
     # type: (Text, Text, Text) -> Dict
@@ -51,11 +61,14 @@ def get_details(imdb_id, season=None, episode=None):
     source_settings = settings.getSourceSettings()
     api_utils.set_headers(dict(HEADERS))
     result = {}
+    
+    show_url = get_trakt_url(source_settings).format(imdb_id)
+    
     if season and episode:
-        url = EP_URL.format(imdb_id, season, episode)
+        url = show_url + '/seasons/{}/episodes/{}/ratings'.format(season, episode)
         params = None
     else:
-        url = SHOW_URL.format(imdb_id)
+        url = show_url
         params = {'extended': 'full'}
     resp = api_utils.load_info(
         url, params=params, default={}, verboselog=source_settings["VERBOSELOG"])

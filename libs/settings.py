@@ -49,13 +49,17 @@ def _get_date_numeric(datetime_):
 
 
 def _get_configuration():
-    addon = Addon()
+    addon = Addon(id='metadata.tvshows.tmdb.cn.optimization')
     logger.debug('getting configuration details')
-    return api_utils.load_info('https://api.themoviedb.org/3/configuration', params={'api_key': TMDB_CLOWNCAR}, verboselog=addon.getSettingBool('verboselog'))
+    base = addon.getSetting('tmdb_api_base_url')
+    if not base:
+        base = 'api.tmdb.org'
+    url = 'https://' + base + '/3/configuration'
+    return api_utils.load_info(url, params={'api_key': TMDB_CLOWNCAR}, verboselog=addon.getSettingBool('verboselog'))
 
 
 def loadBaseUrls():
-    addon = Addon()
+    addon = Addon(id='metadata.tvshows.tmdb.cn.optimization')
     image_root_url = addon.getSettingString('originalUrl')
     preview_root_url = addon.getSettingString('previewUrl')
     last_updated = addon.getSettingString('lastUpdated')
@@ -69,7 +73,23 @@ def loadBaseUrls():
             addon.setSetting('previewUrl', preview_root_url)
             addon.setSetting('lastUpdated', str(
                 _get_date_numeric(datetime.now())))
-    return image_root_url, preview_root_url
+    
+    # Try to get proxy from source settings
+    proxy = None
+    try:
+        source_params = dict(urllib.parse.parse_qsl(sys.argv[2]))
+        source_settings = json.loads(source_params.get('pathSettings', '{}'))
+        proxy = source_settings.get('image_proxy_prefix')
+    except:
+        pass
+
+    if not proxy:
+        proxy = addon.getSetting('image_proxy_prefix')
+
+    if not proxy:
+        proxy = 'https://wsrv.nl/?url='
+        
+    return proxy + image_root_url, proxy + preview_root_url
 
 
 def getSourceSettings():
@@ -122,10 +142,17 @@ def getSourceSettings():
     settings["FANARTTV_CLIENTKEY"] = source_settings.get(
         'fanarttv_clientkey', addon.getSettingString('fanarttv_clientkey'))
         
+    # API & Proxy Settings
+    settings["TMDB_API_BASE_URL"] = source_settings.get('tmdb_api_base_url', addon.getSetting('tmdb_api_base_url'))
+    settings["IMAGE_PROXY_PREFIX"] = source_settings.get('image_proxy_prefix', addon.getSetting('image_proxy_prefix'))
+    settings["FANART_BASE_URL"] = source_settings.get('fanart_base_url', addon.getSetting('fanart_base_url'))
+    settings["IMDB_BASE_URL"] = source_settings.get('imdb_base_url', addon.getSetting('imdb_base_url'))
+    settings["TRAKT_BASE_URL"] = source_settings.get('trakt_base_url', addon.getSetting('trakt_base_url'))
+
     # DNS Settings
     dns_map = {}
     settings_map = {
-        'dns_tmdb_api': 'api.themoviedb.org',
+        'dns_tmdb_api': 'api.tmdb.org',
         'dns_fanart_tv': 'webservice.fanart.tv',
         'dns_imdb_www': 'www.imdb.com',
         'dns_trakt_tv': 'trakt.tv'

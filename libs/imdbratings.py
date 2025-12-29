@@ -21,6 +21,7 @@
 
 import re
 import json
+import xbmcaddon
 from . import api_utils
 from . import settings
 try:
@@ -28,7 +29,19 @@ try:
 except ImportError:
     pass
 
-IMDB_RATINGS_URL = 'https://www.imdb.com/title/{}/'
+def get_imdb_url(source_settings=None):
+    try:
+        if source_settings:
+            base = source_settings.get("IMDB_BASE_URL")
+        else:
+            addon = xbmcaddon.Addon(id='metadata.tvshows.tmdb.cn.optimization')
+            base = addon.getSetting('imdb_base_url')
+        if not base:
+            base = 'www.imdb.com'
+        return 'https://' + base + '/title/{}/'
+    except:
+        return 'https://www.imdb.com/title/{}/'
+
 IMDB_JSON_REGEX = re.compile(
     r'<script type="application\/ld\+json">(.*?)<\/script>')
 
@@ -52,7 +65,7 @@ def _get_ratinginfo(imdb_id):
     """get the IMDB ratings details"""
     source_settings = settings.getSourceSettings()
     api_utils.set_headers(dict(HEADERS))
-    response = api_utils.load_info(IMDB_RATINGS_URL.format(
+    response = api_utils.load_info(get_imdb_url(source_settings).format(
         imdb_id), default='', resp_type='text', verboselog=source_settings["VERBOSELOG"])
     api_utils.set_headers({})
     return _parse_imdb_result(response)

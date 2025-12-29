@@ -66,6 +66,32 @@ def _direct_load_info(url, params=None, default=None, resp_type='json'):
         logger.debug('Direct request failed: {}'.format(e))
         return default
 
+import time
+
+def ensure_daemon_started():
+    """Ensure the daemon process is running."""
+    if not xbmc: return False
+    
+    # Check if port is already set
+    if xbmcgui.Window(10000).getProperty('TMDB_TV_OPTIMIZATION_SERVICE_PORT'):
+        return True
+        
+    logger.debug('[TMDB TV Scraper] Daemon not running, starting...')
+    # Start daemon script
+    addon_id = 'metadata.tvshows.tmdb.cn.optimization'
+    script_path = f'special://home/addons/{addon_id}/daemon.py'
+    xbmc.executebuiltin(f'RunScript({script_path})')
+    
+    # Wait for port to be available (max 5 seconds)
+    for _ in range(50):
+        if xbmcgui.Window(10000).getProperty('TMDB_TV_OPTIMIZATION_SERVICE_PORT'):
+            logger.debug('[TMDB TV Scraper] Daemon started successfully')
+            return True
+        time.sleep(0.1)
+        
+    logger.debug('[TMDB TV Scraper] Failed to start daemon')
+    return False
+
 def load_info(url, params=None, default=None, resp_type='json', verboselog=False):
     # type: (Text, Dict, Text, Text, bool) -> Optional[Text]
     """
@@ -82,6 +108,11 @@ def load_info(url, params=None, default=None, resp_type='json', verboselog=False
         logger.debug(str(HEADERS))
 
     try:
+        # Ensure daemon is running
+        if not ensure_daemon_started():
+             logger.debug('Failed to start service daemon, falling back to direct')
+             return _direct_load_info(url, params, default, resp_type)
+
         # Get port dynamically from Window Property
         service_port = 56790 # Default fallback
         if xbmcgui:
@@ -91,8 +122,21 @@ def load_info(url, params=None, default=None, resp_type='json', verboselog=False
         
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         sock.settimeout(35) # Slightly longer than service timeout
-        sock.connect((SERVICE_HOST, service_port))
-        
+        try:
+            sock.connect((SERVICE_HOST, service_port))
+        except ConnectionRefusedError:
+            # Retry once if connection refused
+            logger.debug('Connection refused, retrying daemon start...')
+            xbmcgui.Window(10000).clearProperty('TMDB_TV_OPTIMIZATION_SERVICE_PORT')
+            if ensure_daemon_started():
+                 port_str = xbmcgui.Window(10000).getProperty('TMDB_TV_OPTIMIZATION_SERVICE_PORT')
+                 service_port = int(port_str)
+                 sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                 sock.settimeout(35)
+                 sock.connect((SERVICE_HOST, service_port))
+            else:
+                 raise
+
         # Construct Protocol V2 Payload
         requests_list = [{
             'url': url,
