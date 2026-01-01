@@ -44,7 +44,9 @@ def get_trakt_url(source_settings=None):
             base = addon.getSetting('trakt_base_url')
         if not base:
             base = 'api.trakt.tv'
-        return 'https://' + base + '/shows/{}'
+        if not base.startswith('http'):
+            base = 'https://' + base
+        return base + '/shows/{}'
     except:
         return 'https://api.trakt.tv/shows/{}'
 

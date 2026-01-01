@@ -381,7 +381,7 @@
 			<group id="1">
 				<setting id="tmdb_api_base_url" type="string" label="32006" help="">
 					<level>0</level>
-					<default>api.tmdb.org</default>
+					<default>https://api.tmdb.org</default>
 					<constraints>
 						<allowempty>true</allowempty>
 					</constraints>
@@ -401,7 +401,7 @@
 				</setting>
 				<setting id="fanart_base_url" type="string" label="32008" help="">
 					<level>0</level>
-					<default>webservice.fanart.tv</default>
+					<default>https://webservice.fanart.tv</default>
 					<constraints>
 						<allowempty>true</allowempty>
 					</constraints>
@@ -411,7 +411,7 @@
 				</setting>
 				<setting id="imdb_base_url" type="string" label="32009" help="">
 					<level>0</level>
-					<default>www.imdb.com</default>
+					<default>https://www.imdb.com</default>
 					<constraints>
 						<allowempty>true</allowempty>
 					</constraints>
@@ -421,7 +421,7 @@
 				</setting>
 				<setting id="trakt_base_url" type="string" label="32010" help="">
 					<level>0</level>
-					<default>api.trakt.tv</default>
+					<default>https://api.trakt.tv</default>
 					<constraints>
 						<allowempty>true</allowempty>
 					</constraints>

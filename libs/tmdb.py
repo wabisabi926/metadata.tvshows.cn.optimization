@@ -50,7 +50,9 @@ def get_base_url(source_settings=None):
             base = addon.getSetting('tmdb_api_base_url')
         if not base:
             base = 'api.tmdb.org'
-        return 'https://' + base + '/3/{}'
+        if not base.startswith('http'):
+            base = 'https://' + base
+        return base + '/3/{}'
     except:
         return 'https://api.tmdb.org/3/{}'
 
@@ -63,7 +65,9 @@ def get_fanart_url(source_settings=None):
             base = addon.getSetting('fanart_base_url')
         if not base:
             base = 'webservice.fanart.tv'
-        return 'https://' + base + '/v3/tv/{}'
+        if not base.startswith('http'):
+            base = 'https://' + base
+        return base + '/v3/tv/{}'
     except:
         return 'https://webservice.fanart.tv/v3/tv/{}'
 
